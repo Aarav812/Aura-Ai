@@ -1,0 +1,206 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, for example v1.0.5'
+        required: true
+        type: string
+      allow_debug_signing:
+        description: 'Allow a debug-signed test APK if release signing secrets are missing'
+        required: false
+        default: false
+        type: boolean
+
+run-name: Build Aura AI APK for ${{ github.event.inputs.tag || github.ref_name }}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  build-release:
+    name: Build Android release
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;28.2.13676358" \
+            "cmake;3.22.1"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.4'
+          channel: stable
+          cache: true
+
+      - name: Resolve version
+        run: |
+          set -euo pipefail
+
+          APP_VERSION="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1)"
+          APP_VERSION_NAME="${APP_VERSION%%+*}"
+          if [ -z "$APP_VERSION" ] || [ -z "$APP_VERSION_NAME" ]; then
+            echo "::error::Could not read version from pubspec.yaml"
+            exit 1
+          fi
+
+          if [ -z "${RELEASE_TAG:-}" ]; then
+            echo "::error::No release tag was provided"
+            exit 1
+          fi
+
+          TAG_VERSION="${RELEASE_TAG#v}"
+          if [ "$TAG_VERSION" != "$APP_VERSION_NAME" ]; then
+            echo "::error::Release tag $RELEASE_TAG does not match pubspec version $APP_VERSION_NAME"
+            exit 1
+          fi
+
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> "$GITHUB_ENV"
+          echo "RELEASE_NAME=Aura AI ${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "Building Aura AI ${APP_VERSION} for ${RELEASE_TAG}"
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ALLOW_DEBUG_SIGNING: ${{ github.event.inputs.allow_debug_signing || 'false' }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+              echo "::error::All four signing secrets must be set: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD"
+              exit 1
+            fi
+
+            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/aura-release.jks
+            test -s android/app/aura-release.jks
+
+            {
+              printf 'storeFile=aura-release.jks\n'
+              printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+              printf 'keyAlias=%s\n' "$KEY_ALIAS"
+              printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+            } > android/key.properties
+
+            chmod 600 android/key.properties android/app/aura-release.jks
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+            echo "Using the configured release keystore."
+          elif [ "${ALLOW_DEBUG_SIGNING:-false}" = "true" ]; then
+            echo "PRIVATELM_ALLOW_DEBUG_RELEASE_SIGNING=true" >> "$GITHUB_ENV"
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+            echo "::warning::Signing secrets are missing. Building a debug-signed APK for testing only."
+          else
+            echo "::error::Release signing is not configured. Add the four Android signing secrets, or run workflow_dispatch with allow_debug_signing=true for a test build."
+            exit 1
+          fi
+
+      - name: Build release APK
+        run: |
+          set -euo pipefail
+          flutter build apk --release --target-platform android-arm64 --no-pub
+
+      - name: Prepare release files
+        run: |
+          set -euo pipefail
+
+          APK_NAME="AuraAI-v${APP_VERSION_NAME}-arm64.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK_NAME"
+
+          SHA256="$(sha256sum "$APK_NAME" | awk '{print $1}')"
+          printf '%s  %s\n' "$SHA256" "$APK_NAME" > "$APK_NAME.sha256"
+
+          if [ "${SIGNED:-false}" = "true" ]; then
+            SIGNING_NOTE="Signed with the configured release keystore."
+          else
+            SIGNING_NOTE="WARNING: debug-signed test build. Do not use this as a production release."
+          fi
+
+          cat > release_notes.md <<EOF
+          ## Aura AI ${APP_VERSION_NAME}
+
+          Android arm64 release APK for Aura AI.
+
+          - Version: ${APP_VERSION}
+          - Package: com.orailnoor.privatelm
+          - Minimum Android: 9 (API 28)
+          - Build commit: ${GITHUB_SHA}
+          - SHA-256: ${SHA256}
+          - Signing: ${SIGNING_NOTE}
+
+          Install:
+            adb install -r ${APK_NAME}
+
+          The APK and SHA-256 checksum are attached below.
+          EOF
+
+          ls -lh "$APK_NAME" release_notes.md
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: AuraAI-${{ env.APP_VERSION_NAME }}-arm64
+          path: |
+            AuraAI-v*-arm64.apk
+            AuraAI-v*-arm64.apk.sha256
+            release_notes.md
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_NAME }}
+          target_commitish: ${{ github.sha }}
+          body_path: release_notes.md
+          files: |
+            AuraAI-v*-arm64.apk
+            AuraAI-v*-arm64.apk.sha256
+          overwrite_files: true
+          make_latest: true
+          fail_on_unmatched_files: true
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -f android/key.properties android/app/aura-release.jks

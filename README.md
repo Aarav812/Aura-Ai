@@ -184,6 +184,24 @@ Do not distribute a debug-signed APK. Android only accepts an update when it is 
 
 `android/key.properties`, `android/local.properties`, APKs, local Firebase app config (`google-services.json`, `firebase_options.dart`), and environment files are ignored by Git. The committed `firebase.json` and `.firebaserc` contain only public project aliases, not service credentials. Release APKs should be attached to GitHub Releases instead of committed to the repository.
 
+### Automated APK releases
+
+The workflow at `.github/workflows/release-apk.yml` builds the ARM64 APK and publishes it to GitHub Releases.
+
+- Push a tag that matches the app version, for example `git tag v1.0.5 && git push origin v1.0.5`. The tag must match `version` in `pubspec.yaml` without the build number, so `1.0.5+5` maps to `v1.0.5`.
+- Or open **Actions → Build and Release APK → Run workflow** and enter the same tag.
+
+Signed releases need these repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64` — the release keystore encoded as base64
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+On Linux, create the base64 value with `base64 -w0 aura-release.jks`; on macOS, use `base64 aura-release.jks | tr -d '\n'`. On Windows PowerShell, use `[Convert]::ToBase64String([IO.File]::ReadAllBytes("aura-release.jks"))`.
+
+Tag builds fail if these secrets are missing, so a debug-signed APK cannot be published accidentally. For a test-only debug-signed build, run the workflow manually with `allow_debug_signing` enabled. Every release gets the APK and its SHA-256 checksum attached.
+
 ---
 
 ## Using the app
