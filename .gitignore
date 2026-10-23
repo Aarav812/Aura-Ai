@@ -2,6 +2,7 @@
 *.class
 *.log
 *.apk
+*.apk.sha256
 *.aab
 *.apks
 
