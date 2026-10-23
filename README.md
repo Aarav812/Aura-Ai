@@ -22,7 +22,7 @@
 
 Aura AI is an Android-first Flutter application for running language models and Stable Diffusion locally on a phone, with optional cloud APIs when you need more power. It combines a model manager, streaming chat, image generation, local inference diagnostics, and an OpenAI-compatible local server in one app.
 
-> **Platform note:** Android is the supported release target for this version. The repository still contains the iOS and Web scaffolding from the cross-platform project, but the native LiteRT-LM and Stable Diffusion paths documented here are Android builds.
+> **Platform note:** Android is the primary release target for this version. The repository still contains the iOS and Web scaffolding from the cross-platform project, but the native LiteRT-LM and Stable Diffusion paths documented here are Android builds.
 
 ---
 
@@ -268,7 +268,7 @@ API keys and provider settings are stored locally in Hive. They are not checked 
 
 ## Known limitations
 
-- **Android is the validated release target.** iOS and Web scaffolding exists, but local LiteRT-LM and Stable Diffusion support is Android-specific in this build.
+- **Android is the primary release target.** iOS and Web scaffolding exists, but local LiteRT-LM and Stable Diffusion support is Android-specific in this build.
 - **GGUF image and audio input are not implemented.** Use a LiteRT-LM vision bundle for local image understanding.
 - **Local Stable Diffusion GPU inference is experimental.** It can crash or overheat some devices; CPU is the default for a reason.
 - **The task planner screen is still a scaffold.** The current execution path reports that command execution is unavailable and the screen is not part of the main navigation.
