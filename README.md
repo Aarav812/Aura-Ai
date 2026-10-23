@@ -54,8 +54,8 @@ The built-in catalog contains a mix of LiteRT-LM, GGUF, and Stable Diffusion 1.5
 
 Useful examples from the current catalog:
 
-- **LiteRT-LM:** Qwen 2.5 1.5B Instruct, DeepSeek R1 Distill Qwen 1.5B, Gemma 4 E2B/E4B Instruct
-- **GGUF:** Qwen 2.5 3B, Llama 3.2 1B/3B, Phi-3.5 Mini, Gemma 2 2B, SmolLM2 1.7B, Dolphin 3.0
+- **LiteRT-LM:** DeepSeek R1 Distill Qwen 1.5B, Gemma 4 E2B/E4B Instruct
+- **GGUF:** LFM2.5 2.6B, Qwen2.5 3B, Qwen2.5 Coder 1.5B, Qwen3 0.6B, Kimi Moonlight 16B, Llama 3.2 1B/3B, Phi-3.5 Mini, Gemma 2 2B, SmolLM2 1.7B, Dolphin 3.0
 - **Image generation:** DreamShaper 8 LCM, CyberRealistic V8, Realistic Vision V5.1, AbsoluteReality, AnyLoRA
 
 > **GGUF vision note:** this build's GGUF runtime is text-only. It does not load an `mmproj` projector. For image understanding, use a compatible LiteRT-LM vision bundle.

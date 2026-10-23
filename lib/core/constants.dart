@@ -90,20 +90,12 @@ class AppConstants {
   // imported from local storage.
   static const Set<String> hiddenModelFilenames = {
     'Qwen3-0.6B.litertlm',
+    'Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm',
+    'qwen2-vl-2b-instruct-q4_k_m.gguf',
   };
 
   // Available Models for Download
   static const List<Map<String, String>> availableModels = [
-    {
-      'name': 'Qwen 2.5 1.5B Instruct (LiteRT-LM)',
-      'filename': 'Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm',
-      'url':
-          'https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm',
-      'size': '1.49 GB',
-      'description': 'Balanced LiteRT-LM chat model with int8 quantization',
-      'template': 'litert',
-      'runtime': 'litert',
-    },
     {
       'name': 'DeepSeek R1 Distill Qwen 1.5B (LiteRT-LM)',
       'filename':
@@ -156,14 +148,32 @@ class AppConstants {
       'template': 'chatml',
     },
     {
-      'name': 'Qwen2-VL-2B Instruct (Q4_K_M)',
-      'filename': 'qwen2-vl-2b-instruct-q4_k_m.gguf',
+      'name': 'LFM2.5 2.6B (Q4_K_M)',
+      'filename': 'LFM2.5-2.6B-Q4_K_M.gguf',
       'url':
-          'https://huggingface.co/bartowski/Qwen2-VL-2B-Instruct-GGUF/resolve/main/Qwen2-VL-2B-Instruct-Q4_K_M.gguf',
-      'size': '1.5 GB',
-      'description': 'Vision-capable — can understand images',
+          'https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF/resolve/main/LFM2.5-2.6B-Q4_K_M.gguf',
+      'size': '1.6 GB',
+      'description':
+          'LiquidAI LFM2.5 — compact reasoning model with 2.6B parameters',
       'template': 'chatml',
-      'vision': 'true',
+    },
+    {
+      'name': 'Qwen2.5 Coder 1.5B Instruct (Q4_K_M)',
+      'filename': 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
+      'url':
+          'https://huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
+      'size': '1.1 GB',
+      'description': 'Code-focused Qwen2.5 Coder — strong at programming tasks',
+      'template': 'chatml',
+    },
+    {
+      'name': 'Qwen3 0.6B (Q8_0)',
+      'filename': 'Qwen3-0.6B-Q8_0.gguf',
+      'url':
+          'https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf',
+      'size': '0.6 GB',
+      'description': 'Ultra-lightweight Qwen3 model — fast local chat',
+      'template': 'chatml',
     },
     {
       'name': 'Phi-3.5 Mini Instruct (Q4_K_M)',
