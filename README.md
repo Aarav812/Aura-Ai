@@ -13,12 +13,10 @@
   <img alt="Dart" src="https://img.shields.io/badge/Dart-3.10-0175C2?logo=dart&logoColor=white" />
   <img alt="Android API 28+" src="https://img.shields.io/badge/Android-API%2028%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Version 1.0.5+5" src="https://img.shields.io/badge/version-1.0.5%2B5-blue" />
-  <img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green" />
 </p>
 
 > **Current release:** `1.0.5+5`<br>
-> **Primary target:** Android 9+ (API 28), arm64 release build<br>
-> **License:** MIT
+> **Primary target:** Android 9+ (API 28), arm64 release build
 
 Aura AI is an Android-first Flutter application for running language models and Stable Diffusion locally on a phone, with optional cloud APIs when you need more power. It combines a model manager, streaming chat, image generation, local inference diagnostics, and an OpenAI-compatible local server in one app.
 
@@ -288,10 +286,4 @@ Native inference is powered by these open-source projects and their contributors
 - [stable-diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp) and `sd_flutter_android`
 - Flutter, GetX, Hive, and the packages listed in `pubspec.yaml`
 
-Model weights are provided by their respective authors on Hugging Face and are subject to their own licenses.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE) for details. Third-party native libraries and model weights retain their own licenses.
+Model weights are provided by their respective authors on Hugging Face and are subject to their own licenses. Third-party native libraries retain their own licenses.
