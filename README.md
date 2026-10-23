@@ -186,21 +186,25 @@ Do not distribute a debug-signed APK. Android only accepts an update when it is 
 
 ### Automated APK releases
 
-The workflow at `.github/workflows/release-apk.yml` builds the ARM64 APK and publishes it to GitHub Releases.
+The workflow at `.github/workflows/release-apk.yml` builds a release-signed ARM64 APK and publishes it to GitHub Releases. It never publishes a debug-signed APK.
 
-- Push a tag that matches the app version, for example `git tag v1.0.5 && git push origin v1.0.5`. The tag must match `version` in `pubspec.yaml` without the build number, so `1.0.5+5` maps to `v1.0.5`.
-- Or open **Actions → Build and Release APK → Run workflow** and enter the same tag.
+There are two ways to create a release:
 
-Signed releases need these repository secrets:
+- **Manual run:** open **Actions > Build and Release APK > Run workflow** and leave the version empty. The workflow bumps the patch version and build number automatically, for example `1.0.5+5` becomes `1.0.6+6`. The next run becomes `1.0.7+7`. You can also enter a specific version such as `1.1.0` or `1.1.0+10`.
+- **Tag push:** update `version` in `pubspec.yaml`, commit it, then push a matching tag. For example, `1.0.6+6` maps to `git tag v1.0.6 && git push origin v1.0.6`.
 
-- `ANDROID_KEYSTORE_BASE64` — the release keystore encoded as base64
+A manual run updates `pubspec.yaml`, commits the version bump to `main`, builds the APK, creates the tag and publishes the release. The tag and APK version always match. If `main` is protected, allow GitHub Actions to push or use the tag workflow instead.
+
+Release signing is mandatory. Add these repository secrets:
+
+- `ANDROID_KEYSTORE_BASE64` - the release keystore encoded as base64
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
 On Linux, create the base64 value with `base64 -w0 aura-release.jks`; on macOS, use `base64 aura-release.jks | tr -d '\n'`. On Windows PowerShell, use `[Convert]::ToBase64String([IO.File]::ReadAllBytes("aura-release.jks"))`.
 
-Tag builds fail if these secrets are missing, so a debug-signed APK cannot be published accidentally. For a test-only debug-signed build, run the workflow manually with `allow_debug_signing` enabled. Every release gets the APK and its SHA-256 checksum attached.
+The workflow fails before building if any signing secret is missing, so a debug-signed APK cannot be published. Every release gets the APK and its SHA-256 checksum attached.
 
 ---
 

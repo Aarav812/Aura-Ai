@@ -6,15 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag, for example v1.0.5'
-        required: true
-        type: string
-      allow_debug_signing:
-        description: 'Allow a debug-signed test APK if release signing secrets are missing'
+      version:
+        description: 'Next version, for example 1.0.6. Leave empty to bump the patch version automatically.'
         required: false
-        default: false
-        type: boolean
+        type: string
 
 run-name: Build Aura AI APK for ${{ github.ref_name }}
 
@@ -61,17 +56,89 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Resolve release metadata
+      - name: Prepare release version
         id: metadata
         run: |
           set -euo pipefail
 
+          CURRENT_VERSION="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | head -n 1)"
+          if [ -z "$CURRENT_VERSION" ]; then
+            echo "::error::Could not read version from pubspec.yaml"
+            exit 1
+          fi
+
+          CURRENT_NAME="${CURRENT_VERSION%%+*}"
+          CURRENT_BUILD="${CURRENT_VERSION##*+}"
+          if [ "$CURRENT_BUILD" = "$CURRENT_VERSION" ]; then
+            CURRENT_BUILD=0
+          fi
+          if ! printf '%s' "$CURRENT_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::pubspec.yaml version must look like 1.0.5+5"
+            exit 1
+          fi
+          if ! printf '%s' "$CURRENT_BUILD" | grep -Eq '^[0-9]+$'; then
+            echo "::error::pubspec.yaml build number must be numeric"
+            exit 1
+          fi
+
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            RELEASE_TAG="$(jq -r '.inputs.tag // empty' "$GITHUB_EVENT_PATH")"
-            ALLOW_DEBUG_SIGNING="$(jq -r '.inputs.allow_debug_signing // false' "$GITHUB_EVENT_PATH")"
+            if [ "$GITHUB_REF_NAME" != "main" ]; then
+              echo "::error::Run this workflow from the main branch"
+              exit 1
+            fi
+
+            INPUT_VERSION="$(jq -r '.inputs.version // empty' "$GITHUB_EVENT_PATH")"
+
+            if [ -z "$INPUT_VERSION" ]; then
+              IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT_NAME"
+              NEXT_NAME="${MAJOR}.${MINOR}.$((10#$PATCH + 1))"
+              NEXT_BUILD=$((10#$CURRENT_BUILD + 1))
+            elif [[ "$INPUT_VERSION" == *"+"* ]]; then
+              NEXT_NAME="${INPUT_VERSION%%+*}"
+              NEXT_BUILD="${INPUT_VERSION##*+}"
+            else
+              NEXT_NAME="$INPUT_VERSION"
+              NEXT_BUILD=$((10#$CURRENT_BUILD + 1))
+            fi
+
+            if ! printf '%s' "$NEXT_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::Version must look like 1.0.6 or 1.0.6+6"
+              exit 1
+            fi
+            if ! printf '%s' "$NEXT_BUILD" | grep -Eq '^[0-9]+$'; then
+              echo "::error::Build number must be numeric"
+              exit 1
+            fi
+
+            NEXT_BUILD=$((10#$NEXT_BUILD))
+            if [ "$(printf '%s\n%s\n' "$CURRENT_NAME" "$NEXT_NAME" | sort -V | tail -n 1)" != "$NEXT_NAME" ] || [ "$NEXT_NAME" = "$CURRENT_NAME" ]; then
+              echo "::error::New version $NEXT_NAME must be greater than current version $CURRENT_NAME"
+              exit 1
+            fi
+            if [ "$NEXT_BUILD" -le $((10#$CURRENT_BUILD)) ]; then
+              echo "::error::New build number $NEXT_BUILD must be greater than current build number $CURRENT_BUILD"
+              exit 1
+            fi
+
+            RELEASE_TAG="v${NEXT_NAME}"
+            if git rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+              echo "::error::Tag $RELEASE_TAG already exists"
+              exit 1
+            fi
+
+            sed -i "s/^version:.*/version: ${NEXT_NAME}+${NEXT_BUILD}/" pubspec.yaml
+            if ! grep -q "^version: ${NEXT_NAME}+${NEXT_BUILD}$" pubspec.yaml; then
+              echo "::error::Failed to update pubspec.yaml"
+              exit 1
+            fi
+
+            BUMP=true
+            echo "Next version: ${NEXT_NAME}+${NEXT_BUILD}"
           else
             RELEASE_TAG="${GITHUB_REF_NAME}"
-            ALLOW_DEBUG_SIGNING="false"
+            NEXT_NAME="$CURRENT_NAME"
+            NEXT_BUILD="$CURRENT_BUILD"
+            BUMP=false
           fi
 
           if [ -z "$RELEASE_TAG" ]; then
@@ -80,10 +147,25 @@ jobs:
           fi
 
           echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "ALLOW_DEBUG_SIGNING=$ALLOW_DEBUG_SIGNING" >> "$GITHUB_ENV"
+          echo "NEXT_VERSION=${NEXT_NAME}+${NEXT_BUILD}" >> "$GITHUB_ENV"
           echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
           echo "Release tag: $RELEASE_TAG"
-          echo "Allow debug signing: $ALLOW_DEBUG_SIGNING"
+          echo "Version bump: $BUMP"
+
+      - name: Validate signing configuration
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${KEYSTORE_BASE64:-}" ] || [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
+            echo "::error::Release signing is not configured. Add ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD as repository secrets."
+            exit 1
+          fi
 
       - name: Resolve version
         id: version
@@ -126,40 +208,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -n "${KEYSTORE_BASE64:-}" ]; then
-            if [ -z "${KEYSTORE_PASSWORD:-}" ] || [ -z "${KEY_ALIAS:-}" ] || [ -z "${KEY_PASSWORD:-}" ]; then
-              echo "::error::All four signing secrets must be set: ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD"
-              exit 1
-            fi
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/aura-release.jks
+          test -s android/app/aura-release.jks
 
-            printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/aura-release.jks
-            test -s android/app/aura-release.jks
+          {
+            printf 'storeFile=aura-release.jks\n'
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > android/key.properties
 
-            {
-              printf 'storeFile=aura-release.jks\n'
-              printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
-              printf 'keyAlias=%s\n' "$KEY_ALIAS"
-              printf 'keyPassword=%s\n' "$KEY_PASSWORD"
-            } > android/key.properties
-
-            chmod 600 android/key.properties android/app/aura-release.jks
-            echo "SIGNED=true" >> "$GITHUB_ENV"
-            echo "Using the configured release keystore."
-          elif [ "${ALLOW_DEBUG_SIGNING:-false}" = "true" ]; then
-            echo "PRIVATELM_ALLOW_DEBUG_RELEASE_SIGNING=true" >> "$GITHUB_ENV"
-            echo "SIGNED=false" >> "$GITHUB_ENV"
-            echo "::warning::Signing secrets are missing. Building a debug-signed APK for testing only."
-          else
-            echo "::error::Release signing is not configured. Add the four Android signing secrets, or run workflow_dispatch with allow_debug_signing=true for a test build."
-            exit 1
-          fi
+          chmod 600 android/key.properties android/app/aura-release.jks
+          echo "SIGNED=true" >> "$GITHUB_ENV"
+          echo "Using the configured release keystore."
 
       - name: Build release APK
         run: |
           set -euo pipefail
           flutter build apk --release --target-platform android-arm64 --no-pub
 
+      - name: Commit version bump
+        if: steps.metadata.outputs.bump == 'true'
+        id: commit
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git commit -m "chore(release): ${NEXT_VERSION}"
+          git push origin HEAD:main
+          echo "build_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Prepare release files
+        env:
+          BUILD_SHA: ${{ steps.commit.outputs.build_sha || github.sha }}
         run: |
           set -euo pipefail
 
@@ -169,12 +251,6 @@ jobs:
           SHA256="$(sha256sum "$APK_NAME" | awk '{print $1}')"
           printf '%s  %s\n' "$SHA256" "$APK_NAME" > "$APK_NAME.sha256"
 
-          if [ "${SIGNED:-false}" = "true" ]; then
-            SIGNING_NOTE="Signed with the configured release keystore."
-          else
-            SIGNING_NOTE="WARNING: debug-signed test build. Do not use this as a production release."
-          fi
-
           cat > release_notes.md <<EOF
           ## Aura AI ${APP_VERSION_NAME}
 
@@ -183,9 +259,9 @@ jobs:
           - Version: ${APP_VERSION}
           - Package: com.orailnoor.privatelm
           - Minimum Android: 9 (API 28)
-          - Build commit: ${GITHUB_SHA}
+          - Build commit: ${BUILD_SHA}
           - SHA-256: ${SHA256}
-          - Signing: ${SIGNING_NOTE}
+          - Signing: Signed with the configured release keystore.
 
           Install:
             adb install -r ${APK_NAME}
@@ -212,7 +288,7 @@ jobs:
         with:
           tag_name: ${{ steps.metadata.outputs.release_tag }}
           name: ${{ steps.version.outputs.release_name }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ steps.commit.outputs.build_sha || github.sha }}
           body_path: release_notes.md
           files: |
             AuraAI-v*-arm64.apk
