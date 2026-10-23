@@ -16,7 +16,7 @@ on:
         default: false
         type: boolean
 
-run-name: Build Aura AI APK for ${{ github.event.inputs.tag || github.ref_name }}
+run-name: Build Aura AI APK for ${{ github.ref_name }}
 
 permissions:
   contents: write
@@ -24,9 +24,6 @@ permissions:
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
-
-env:
-  RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   build-release:
@@ -65,7 +62,32 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Resolve release metadata
+        id: metadata
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            RELEASE_TAG="$(jq -r '.inputs.tag // empty' "$GITHUB_EVENT_PATH")"
+            ALLOW_DEBUG_SIGNING="$(jq -r '.inputs.allow_debug_signing // false' "$GITHUB_EVENT_PATH")"
+          else
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+            ALLOW_DEBUG_SIGNING="false"
+          fi
+
+          if [ -z "$RELEASE_TAG" ]; then
+            echo "::error::No release tag was provided"
+            exit 1
+          fi
+
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "ALLOW_DEBUG_SIGNING=$ALLOW_DEBUG_SIGNING" >> "$GITHUB_ENV"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $RELEASE_TAG"
+          echo "Allow debug signing: $ALLOW_DEBUG_SIGNING"
+
       - name: Resolve version
+        id: version
         run: |
           set -euo pipefail
 
@@ -89,7 +111,8 @@ jobs:
 
           echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
           echo "APP_VERSION_NAME=$APP_VERSION_NAME" >> "$GITHUB_ENV"
-          echo "RELEASE_NAME=Aura AI ${RELEASE_TAG}" >> "$GITHUB_ENV"
+          echo "app_version_name=$APP_VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_name=Aura AI ${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
           echo "Building Aura AI ${APP_VERSION} for ${RELEASE_TAG}"
 
       - name: Install Flutter dependencies
@@ -101,7 +124,6 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ALLOW_DEBUG_SIGNING: ${{ github.event.inputs.allow_debug_signing || 'false' }}
         run: |
           set -euo pipefail
 
@@ -177,7 +199,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
-          name: AuraAI-${{ env.APP_VERSION_NAME }}-arm64
+          name: AuraAI-${{ steps.version.outputs.app_version_name }}-arm64
           path: |
             AuraAI-v*-arm64.apk
             AuraAI-v*-arm64.apk.sha256
@@ -189,8 +211,8 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ steps.metadata.outputs.release_tag }}
+          name: ${{ steps.version.outputs.release_name }}
           target_commitish: ${{ github.sha }}
           body_path: release_notes.md
           files: |
