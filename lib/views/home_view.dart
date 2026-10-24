@@ -1,5 +1,8 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import '../core/colors.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -74,42 +77,80 @@ class HomeView extends GetView<HomeController> {
   }
 
   Widget _buildBottomNav(BuildContext context, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.bg : AppColors.lightBg,
-        border: Border(
-            top: BorderSide(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.08),
-          width: 0.5,
-        )),
-      ),
-      child: BottomNavigationBar(
-        currentIndex: controller.currentTab.value,
-        onTap: controller.changeTab,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        items: [
-          for (final tab in _tabs)
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Icon(tab.icon, size: 22),
-              ),
-              activeIcon: Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Icon(tab.activeIcon, size: 22),
-              ),
-              label: tab.label,
+    final selected = controller.currentTab.value;
+    const accent = AppColors.primary;
+
+    return SafeArea(
+      top: false,
+      minimum: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withValues(alpha: 0.45)
+                  : accent.withValues(alpha: 0.10),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
             ),
-        ],
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+            child: Container(
+              height: 66,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? [
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.white.withValues(alpha: 0.045),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.94),
+                          Colors.white.withValues(alpha: 0.74),
+                        ],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.12)
+                      : Colors.black.withValues(alpha: 0.06),
+                  width: 0.8,
+                ),
+              ),
+              child: Row(
+                children: [
+                  for (var i = 0; i < _tabs.length; i++)
+                    Expanded(
+                      child: _DockItem(
+                        tab: _tabs[i],
+                        selected: selected == i,
+                        isDark: isDark,
+                        onTap: () {
+                          if (selected == i) return;
+                          HapticFeedback.selectionClick();
+                          controller.changeTab(i);
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildSidebar(BuildContext context, bool isDark) {
-    final accent = AppColors.primary;
+    const accent = AppColors.primary;
     final muted = Theme.of(context).hintColor;
 
     return Container(
@@ -178,4 +219,93 @@ class _NavItem {
   final String label;
   const _NavItem(
       {required this.icon, required this.activeIcon, required this.label});
+}
+
+class _DockItem extends StatelessWidget {
+  const _DockItem({
+    required this.tab,
+    required this.selected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final _NavItem tab;
+  final bool selected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = AppColors.primary;
+    final muted = Theme.of(context).hintColor;
+
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: tab.label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(
+            color: selected && !isDark
+                ? accent.withValues(alpha: 0.10)
+                : Colors.transparent,
+            gradient: selected && isDark
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      accent.withValues(alpha: 0.24),
+                      accent.withValues(alpha: 0.10),
+                    ],
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(22),
+            border: selected
+                ? Border.all(
+                    color: accent.withValues(alpha: isDark ? 0.28 : 0.16),
+                    width: 0.8,
+                  )
+                : null,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.08 : 1.0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: Icon(
+                  selected ? tab.activeIcon : tab.icon,
+                  size: 21,
+                  color: selected ? accent : muted,
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                style: GoogleFonts.inter(
+                  fontSize: 10,
+                  height: 1.0,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? accent : muted,
+                ),
+                child: Text(
+                  tab.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

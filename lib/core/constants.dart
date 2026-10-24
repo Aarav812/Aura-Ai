@@ -158,6 +158,37 @@ class AppConstants {
       'template': 'chatml',
     },
     {
+      'name': 'Spark-X2.6 4B (Q4_K_M)',
+      'filename': 'Spark-X2.6-4B-Q4_K_M.gguf',
+      'url':
+          'https://huggingface.co/XHToken/Spark-X2.6-4B-GGUF/resolve/main/Spark-X2.6-4B-Q4_K_M.gguf',
+      'size': '3.3 GB',
+      'description':
+          'XHToken Spark-X2.6 4B — 1M context reasoning model.',
+      'template': 'chatml',
+    },
+    {
+      'name': 'Spark-X2.5 4B Uncensored (Q4_K_M)',
+      'filename': 'Spark-X2.5-4B-uncensored-Q4_K_M.gguf',
+      'url':
+          'https://huggingface.co/InfinimindCreations/Spark-X2.5-4B-uncensored-GGUF/resolve/main/Spark-X2.5-4B-uncensored-Q4_K_M.gguf',
+      'size': '2.4 GB',
+      'description':
+          'Infinimind Spark-X2.5 4B abliterated — 1M context.',
+      'template': 'chatml',
+    },
+    {
+      'name': 'LFM2.5 2.6B Uncensored Abliterated (BF16)',
+      'filename':
+          'LFM2.5-2.6B-UNCENSORED-ABLITERATED-PHILADELPHIA-CLASS-BF16.gguf',
+      'url':
+          'https://huggingface.co/PhillyLabs/LFM2.5-2.6B-UNCENSORED-ABLITERATED-PHILADELPHIA-CLASS/resolve/main/LFM2.5-2.6B-UNCENSORED-ABLITERATED-PHILADELPHIA-CLASS-BF16.gguf',
+      'size': '5.0 GB',
+      'description':
+          'PhillyLabs LFM2.5 2.6B abliterated — BF16, 128K context, 16 languages. Needs about 6 GB RAM.',
+      'template': 'chatml',
+    },
+    {
       'name': 'Qwen2.5 Coder 1.5B Instruct (Q4_K_M)',
       'filename': 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf',
       'url':
