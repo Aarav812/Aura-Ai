@@ -456,6 +456,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     // Add penalties first (applied to logits before sampling)
     if (repeat_penalty != 1.0f || frequency_penalty != 0.0f || presence_penalty != 0.0f) {
         llama_sampler_chain_add(g_sampler, llama_sampler_init_penalties(
+            llama_vocab_n_tokens(g_vocab), // n_vocab
             repeat_last_n,              // penalty_last_n
             repeat_penalty,             // penalty_repeat
             frequency_penalty,          // penalty_freq
@@ -508,7 +509,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     jmethodID invokeMethod = env->GetMethodID(callbackClass, "invoke", "(Ljava/lang/Object;)Ljava/lang/Object;");
 
     // Generation loop
-    LOGI("Starting generation loop: max_tokens=%lld", max_tokens);
+    LOGI("Starting generation loop: max_tokens=%ld", static_cast<long>(max_tokens));
     for (int i = 0; i < max_tokens && !g_stop_flag; i++) {
         // Sample next token
         LOGI("Sampling token %d, g_n_past=%d", i + 1, g_n_past);
